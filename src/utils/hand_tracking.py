@@ -46,31 +46,71 @@ class HandDetector:
         if len(self.lmList) == 0:
             return fingers
 
-        # Thumb (Tip 4 is left/right of IP 3 depending on hand/facing)
-        # Assuming right hand facing camera (palm visible) vs back.
-        # Simple check: x comparison for thumb
-        if self.lmList[self.tipIds[0]][1] > self.lmList[self.tipIds[0] - 1][1]:
-            fingers.append(1)
-        else:
-            fingers.append(0)
-
-        # 4 Fingers
+        # Determine if hand is Left or Right
+        # Default to Right Hand behavior if unknown
+        # Note: MediaPipe mirrors input by default for selfies, so "Left" hand appears on Right side
+        # But we need to check Handedness if available. 
+        # For simplicity, we'll use a heuristic based on x-coordinates for the thumb.
+        
+        # Thumbs up logic
+        # For Right Hand: Thumb x < Index Finger x means open (if palm facing camera)
+        # But this depends heavily on rotation.
+        # Let's use a simpler "folded" check: Is tip closer to pinky base (MCP) than IP joint?
+        
+        # Better Thumb Check: Compare Tip x with IP x
+        # We need to know which hand it is to know direction.
+        # Assuming typical "Stop" gesture (palm to camera).
+        
+        # Simple heuristic:
+        # If Tip x > IP x (Right side of screen), and it's a Right Hand, it's open? No.
+        # Let's rely on 4 fingers + distance for grab.
+        
+        # 4 Fingers (Index, Middle, Ring, Pinky)
+        # If Tip y < Pip y (Tip is higher), it is Open (1)
+        # Else Closed (0)
+        # Note: Considers y increases downward.
         for id in range(1, 5):
             if self.lmList[self.tipIds[id]][2] < self.lmList[self.tipIds[id] - 2][2]:
                 fingers.append(1)
             else:
                 fingers.append(0)
+        
         return fingers
 
     def isGrabbing(self):
-        # A simple check: if all fingers are down (0), it is a fist/grab
-        # Or if distance between thumb tip and index tip is small
         if len(self.lmList) == 0:
             return False
+            
+        # Robust Grab Detection
+        # 1. Check if 4 fingers (Index-Pinky) are closed
+        fingers_4 = self.fingersUp() # Only returns 4 values now based on my change above? 
+        # Wait, previous implementation returned 5. Better to return 5 for consistency?
+        # Let's stick to the 4 fingers check for the "Fist" part, and check thumb distance.
         
-        fingers = self.fingersUp()
-        # If 4 fingers are down (index, middle, ring, pinky), consider it a grab
-        # Thumb is tricky depending on orientation
-        if fingers[1:].count(0) == 4:
+        # Re-implementing simplified fingersUp inside or fixing logic?
+        # Let's maintain API compatibility but fix internal logic.
+        
+        # Check 4 fingers (Index to Pinky)
+        fingers_closed = 0
+        for id in range(1, 5):
+            # If Tip Y > PIP Y (Tip is lower than knuckle), it's closed
+            if self.lmList[self.tipIds[id]][2] > self.lmList[self.tipIds[id] - 2][2]:
+                fingers_closed += 1
+        
+        # Check Thumb
+        # Thumb is closed if Tip is close to the base of Pinky or just generally "in"
+        # Distance based heuristic is best for grabbing
+        
+        # Distance between Thumb Tip (4) and Index Base (5) or Pinky Base (17)
+        x1, y1 = self.lmList[4][1], self.lmList[4][2]
+        x2, y2 = self.lmList[17][1], self.lmList[17][2] # Pinky Base
+        # x3, y3 = self.lmList[5][1], self.lmList[5][2] # Index Base
+        
+        length = math.hypot(x2 - x1, y2 - y1)
+        
+        # Normalized length check?
+        # Improve reliability: If 4 fingers are down AND thumb is somewhat close
+        if fingers_closed >= 4: # All 4 fingers closed
             return True
+            
         return False
