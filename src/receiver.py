@@ -44,10 +44,22 @@ def main():
     while True:
         success, img = cap.read()
         if not success:
-            break
+            # If camera fails (e.g., used by sender), create a black image to keep UI running
+            import numpy as np
+            img = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(img, "Camera Unavailable", (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(img, "(Network Still Active)", (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            # Add a small delay to prevent CPU spinning
+            time.sleep(0.03)
 
-        img = detector.findHands(img)
-        lmList = detector.findPosition(img, draw=False)
+        # Standard processing continues...
+        if success:
+            img = detector.findHands(img)
+            lmList = detector.findPosition(img, draw=False)
+        else:
+            lmList = [] # No hands detected if no camera
+
+
 
         # Check for incoming files
         try:
